@@ -36,9 +36,6 @@ RUN npm i
 # Install Chrome
 RUN npx remotion browser ensure
 
-# Create necessary directories
-RUN mkdir -p output uploads
-
 # Expose port
 EXPOSE 3000
 
