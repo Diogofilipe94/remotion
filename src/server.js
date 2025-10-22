@@ -2,126 +2,236 @@ import express from "express";
 import cors from "cors";
 import multer from "multer";
 import { v4 as uuidv4 } from "uuid";
-import fs from "fs-extra";
+import { promises as fs } from "fs";
 import path from "path";
-import { renderVideo } from "./renderer.js";
+import { spawn } from "child_process";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Configurar multer para upload de ficheiros
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = "./uploads";
-    fs.ensureDirSync(uploadDir);
-    cb(null, uploadDir);
+    cb(null, "uploads/");
   },
   filename: (req, file, cb) => {
-    cb(null, `${uuidv4()}-${file.originalname}`);
-  },
+    const uniqueName = `${uuidv4()}-${file.originalname}`;
+    cb(null, uniqueName);
+  }
 });
 
-// Configurar filtros para diferentes tipos de ficheiros
-const fileFilter = (req, file, cb) => {
-  if (file.fieldname === 'image') {
-    // Para imagens
-    if (file.mimetype.startsWith('image/')) {
+const upload = multer({
+  storage: storage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("image/") || file.mimetype.startsWith("video/")) {
       cb(null, true);
     } else {
-      cb(new Error('Apenas ficheiros de imagem são permitidos'), false);
+      cb(new Error("Apenas ficheiros de imagem e vídeo são permitidos"), false);
     }
-  } else if (file.fieldname === 'video') {
-    // Para vídeos
-    if (file.mimetype.startsWith('video/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Apenas ficheiros de vídeo são permitidos'), false);
-    }
-  } else {
-    cb(null, true);
-  }
-};
-
-const upload = multer({ 
-  storage,
-  fileFilter,
+  },
   limits: {
-    fileSize: 100 * 1024 * 1024, // 100MB limite
+    fileSize: 100 * 1024 * 1024
   }
 });
 
 // Criar directórios necessários
-const ensureDirectories = () => {
-  fs.ensureDirSync("./uploads");
-  fs.ensureDirSync("./output");
-  fs.ensureDirSync("./temp");
+const createDirectories = async () => {
+  try {
+    await fs.mkdir("output", { recursive: true });
+    await fs.mkdir("uploads", { recursive: true });
+  } catch (error) {
+    console.error("Erro ao criar directórios:", error);
+  }
 };
 
-ensureDirectories();
+createDirectories();
+
+// Servir ficheiros estáticos
+app.use("/uploads", express.static("uploads"));
+app.use("/output", express.static("output"));
 
 // Endpoint para gerar vídeo simples
 app.post("/api/generate-video", async (req, res) => {
   try {
-    const {
-      title = "Título Padrão",
-      subtitle = "Subtítulo Padrão",
-      backgroundColor = "#000000",
-      textColor = "#ffffff",
-      duration = 5, // segundos
-    } = req.body;
-
+    const { title, subtitle, backgroundColor, textColor } = req.body;
     const videoId = uuidv4();
-    const outputPath = path.join("./output", `${videoId}.mp4`);
-
+    const outputPath = `output/${videoId}.mp4`;
+    
     const inputProps = {
-      title,
-      subtitle,
-      backgroundColor,
-      textColor,
+      title: title || "Título Padrão",
+      subtitle: subtitle || "Subtítulo Padrão",
+      backgroundColor: backgroundColor || "#000000",
+      textColor: textColor || "#ffffff"
     };
 
-    const result = await renderVideo("VideoRoot", inputProps, outputPath);
+    console.log("Starting video generation...");
+    console.log("Input props:", inputProps);
+
+    const result = await new Promise((resolve, reject) => {
+      const inputPropsJson = JSON.stringify(inputProps);
+      const child = spawn("node", ["render.mjs", "VideoRoot", outputPath, inputPropsJson], {
+        stdio: ["pipe", "pipe", "pipe"]
+      });
+
+      let stdout = "";
+      let stderr = "";
+
+      child.stdout.on("data", (data) => {
+        stdout += data.toString();
+        console.log("Render output:", data.toString());
+      });
+
+      child.stderr.on("data", (data) => {
+        stderr += data.toString();
+        console.error("Render error:", data.toString());
+      });
+
+      child.on("close", (code) => {
+        if (code === 0) {
+          resolve({
+            success: true,
+            outputPath,
+            stdout,
+          });
+        } else {
+          reject({
+            success: false,
+            error: stderr || "Render process failed",
+            code,
+          });
+        }
+      });
+
+      child.on("error", (error) => {
+        reject({
+          success: false,
+          error: error.message,
+        });
+      });
+    });
 
     if (result.success) {
       res.json({
         success: true,
         videoId,
-        downloadUrl: `/api/download/${videoId}`,
-        duration: result.duration,
-        message: "Vídeo gerado com sucesso!",
+        outputPath,
+        message: "Vídeo gerado com sucesso!"
       });
     } else {
       res.status(500).json({
         success: false,
-        error: result.error,
+        error: result.error
       });
     }
+
   } catch (error) {
-    console.error("Error in /api/generate-video:", error);
+    console.error("Erro ao gerar vídeo:", error);
     res.status(500).json({
       success: false,
-      error: "Erro interno do servidor",
+      error: error.message
     });
   }
 });
 
-// Endpoint para upload de vídeo
+// Endpoint para gerar vídeo com imagem
+app.post("/api/generate-video-with-image", upload.single("image"), async (req, res) => {
+  try {
+    const { title, subtitle, backgroundColor, textColor } = req.body;
+    const videoId = uuidv4();
+    const outputPath = `output/${videoId}.mp4`;
+    
+    const inputProps = {
+      title: title || "Título Padrão",
+      subtitle: subtitle || "Subtítulo Padrão",
+      backgroundColor: backgroundColor || "#000000",
+      textColor: textColor || "#ffffff",
+      imagePath: req.file ? req.file.path : null
+    };
+
+    const result = await new Promise((resolve, reject) => {
+      const inputPropsJson = JSON.stringify(inputProps);
+      const child = spawn("node", ["render.mjs", "VideoRoot", outputPath, inputPropsJson], {
+        stdio: ["pipe", "pipe", "pipe"]
+      });
+
+      let stdout = "";
+      let stderr = "";
+
+      child.stdout.on("data", (data) => {
+        stdout += data.toString();
+        console.log("Render output:", data.toString());
+      });
+
+      child.stderr.on("data", (data) => {
+        stderr += data.toString();
+        console.error("Render error:", data.toString());
+      });
+
+      child.on("close", (code) => {
+        if (code === 0) {
+          resolve({
+            success: true,
+            outputPath,
+            stdout,
+          });
+        } else {
+          reject({
+            success: false,
+            error: stderr || "Render process failed",
+            code,
+          });
+        }
+      });
+
+      child.on("error", (error) => {
+        reject({
+          success: false,
+          error: error.message,
+        });
+      });
+    });
+
+    if (result.success) {
+      res.json({
+        success: true,
+        videoId,
+        outputPath,
+        message: "Vídeo gerado com sucesso!"
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error
+      });
+    }
+
+  } catch (error) {
+    console.error("Erro ao gerar vídeo:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Endpoint para transferir vídeo
 app.post("/api/upload-video", upload.single("video"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
         success: false,
-        error: "Nenhum ficheiro de vídeo foi enviado"
+        error: "Nenhum ficheiro foi transferido"
       });
     }
 
+    const videoId = uuidv4();
     const videoInfo = {
-      id: uuidv4(),
+      id: videoId,
       filename: req.file.filename,
       originalName: req.file.originalname,
       path: req.file.path,
@@ -130,103 +240,78 @@ app.post("/api/upload-video", upload.single("video"), async (req, res) => {
       uploadedAt: new Date().toISOString()
     };
 
-    // Guardar informações do vídeo num ficheiro JSON
-    const videosDbPath = "./uploads/videos.json";
-    let videos = [];
-    
-    if (fs.existsSync(videosDbPath)) {
-      videos = JSON.parse(fs.readFileSync(videosDbPath, 'utf8'));
-    }
-    
-    videos.push(videoInfo);
-    fs.writeFileSync(videosDbPath, JSON.stringify(videos, null, 2));
-
     res.json({
       success: true,
-      video: videoInfo,
-      message: "Vídeo carregado com sucesso!"
+      videoId,
+      message: "Vídeo transferido com sucesso",
+      video: videoInfo
     });
 
   } catch (error) {
-    console.error("Error uploading video:", error);
+    console.error("Erro ao transferir ficheiro:", error);
     res.status(500).json({
       success: false,
-      error: "Erro ao carregar vídeo"
+      error: "Erro ao transferir ficheiro"
     });
   }
 });
 
-// Endpoint para listar vídeos carregados
-app.get("/api/uploaded-videos", (req, res) => {
+// Endpoint para listar vídeos transferidos
+app.get("/api/uploaded-videos", async (req, res) => {
   try {
-    const videosDbPath = "./uploads/videos.json";
-    
-    if (!fs.existsSync(videosDbPath)) {
-      return res.json({
-        success: true,
-        videos: [],
-        count: 0
-      });
+    const files = await fs.readdir("uploads");
+    const videoFiles = [];
+
+    for (const file of files) {
+      const filePath = path.join("uploads", file);
+      const stats = await fs.stat(filePath);
+      
+      if (stats.isFile()) {
+        videoFiles.push({
+          id: file,
+          filename: file,
+          path: filePath,
+          size: stats.size,
+          uploadedAt: stats.mtime
+        });
+      }
     }
 
-    const videos = JSON.parse(fs.readFileSync(videosDbPath, 'utf8'));
-    
     res.json({
       success: true,
-      videos,
-      count: videos.length
+      videos: videoFiles
     });
 
   } catch (error) {
-    console.error("Error listing uploaded videos:", error);
+    console.error("Erro ao listar vídeos:", error);
     res.status(500).json({
       success: false,
-      error: "Erro ao listar vídeos carregados"
+      error: "Erro ao listar vídeos"
     });
   }
 });
 
-// Endpoint para eliminar vídeo carregado
-app.delete("/api/uploaded-videos/:videoId", (req, res) => {
+// Endpoint para eliminar vídeo transferido
+app.delete("/api/uploaded-videos/:videoId", async (req, res) => {
   try {
     const { videoId } = req.params;
-    const videosDbPath = "./uploads/videos.json";
-    
-    if (!fs.existsSync(videosDbPath)) {
-      return res.status(404).json({
-        success: false,
-        error: "Base de dados de vídeos não encontrada"
-      });
-    }
+    const filePath = path.join("uploads", videoId);
 
-    let videos = JSON.parse(fs.readFileSync(videosDbPath, 'utf8'));
-    const videoIndex = videos.findIndex(v => v.id === videoId);
-    
-    if (videoIndex === -1) {
-      return res.status(404).json({
+    try {
+      await fs.unlink(filePath);
+      res.json({
+        success: true,
+        message: "Vídeo eliminado com sucesso"
+      });
+    } catch (error) {
+      res.status(404).json({
         success: false,
         error: "Vídeo não encontrado"
       });
     }
 
-    const video = videos[videoIndex];
-    
-    // Eliminar ficheiro físico
-    if (fs.existsSync(video.path)) {
-      fs.unlinkSync(video.path);
-    }
-    
-    // Eliminar da base de dados
-    videos.splice(videoIndex, 1);
-    fs.writeFileSync(videosDbPath, JSON.stringify(videos, null, 2));
-
-    res.json({
-      success: true,
-      message: "Vídeo eliminado com sucesso"
-    });
-
   } catch (error) {
-    console.error("Error deleting uploaded video:", error);
+    console.error("Erro ao eliminar vídeo:", error);
     res.status(500).json({
       success: false,
       error: "Erro ao eliminar vídeo"
@@ -234,144 +319,102 @@ app.delete("/api/uploaded-videos/:videoId", (req, res) => {
   }
 });
 
-// Endpoint para gerar vídeo com upload de imagem
-app.post("/api/generate-video-with-image", upload.single("image"), async (req, res) => {
+// Endpoint para download do vídeo
+app.get("/api/download/:videoId", async (req, res) => {
   try {
-    const {
-      title = "Título Padrão",
-      subtitle = "Subtítulo Padrão",
-      backgroundColor = "#000000",
-      textColor = "#ffffff",
-      duration = 5,
-    } = req.body;
-
-    const videoId = uuidv4();
-    const outputPath = path.join("./output", `${videoId}.mp4`);
-
-    const inputProps = {
-      title,
-      subtitle,
-      backgroundColor,
-      textColor,
-      imagePath: req.file ? req.file.path : null,
-    };
-
-    const result = await renderVideo("VideoRoot", inputProps, outputPath);
-
-    if (result.success) {
-      res.json({
-        success: true,
-        videoId,
-        downloadUrl: `/api/download/${videoId}`,
-        duration: result.duration,
-        message: "Vídeo gerado com sucesso!",
-      });
-    } else {
-      res.status(500).json({
+    const { videoId } = req.params;
+    const filePath = path.join("output", `${videoId}.mp4`);
+    
+    try {
+      await fs.access(filePath);
+      res.download(filePath);
+    } catch (error) {
+      res.status(404).json({
         success: false,
-        error: result.error,
+        error: "Vídeo não encontrado"
       });
     }
   } catch (error) {
-    console.error("Error in /api/generate-video-with-image:", error);
+    console.error("Erro ao fazer download:", error);
     res.status(500).json({
       success: false,
-      error: "Erro interno do servidor",
+      error: "Erro ao fazer download"
     });
   }
 });
 
-// Endpoint para download do vídeo
-app.get("/api/download/:videoId", (req, res) => {
+// Endpoint para listar vídeos
+app.get("/api/videos", async (req, res) => {
   try {
-    const { videoId } = req.params;
-    const filePath = path.join("./output", `${videoId}.mp4`);
+    const files = await fs.readdir("output");
+    const videoFiles = [];
 
-    if (fs.existsSync(filePath)) {
-      res.download(filePath, `video-${videoId}.mp4`, (err) => {
-        if (err) {
-          console.error("Error downloading file:", err);
-          res.status(500).json({ error: "Erro ao transferir ficheiro" });
-        }
-      });
-    } else {
-      res.status(404).json({ error: "Vídeo não encontrado" });
+    for (const file of files) {
+      if (file.endsWith(".mp4")) {
+        const filePath = path.join("output", file);
+        const stats = await fs.stat(filePath);
+        
+        videoFiles.push({
+          id: file.replace(".mp4", ""),
+          filename: file,
+          path: filePath,
+          size: stats.size,
+          createdAt: stats.mtime
+        });
+      }
     }
-  } catch (error) {
-    console.error("Error in download endpoint:", error);
-    res.status(500).json({ error: "Erro interno do servidor" });
-  }
-});
-
-// Endpoint para listar vídeos gerados
-app.get("/api/videos", (req, res) => {
-  try {
-    const outputDir = "./output";
-    const files = fs.readdirSync(outputDir);
-    const videos = files
-      .filter(file => file.endsWith(".mp4"))
-      .map(file => ({
-        id: file.replace(".mp4", ""),
-        filename: file,
-        downloadUrl: `/api/download/${file.replace(".mp4", "")}`,
-        createdAt: fs.statSync(path.join(outputDir, file)).birthtime,
-      }));
 
     res.json({
       success: true,
-      videos,
-      count: videos.length,
+      videos: videoFiles
     });
+
   } catch (error) {
-    console.error("Error listing videos:", error);
+    console.error("Erro ao listar vídeos:", error);
     res.status(500).json({
       success: false,
-      error: "Erro ao listar vídeos",
+      error: "Erro ao listar vídeos"
     });
   }
 });
 
 // Endpoint para eliminar vídeo
-app.delete("/api/videos/:videoId", (req, res) => {
+app.delete("/api/videos/:videoId", async (req, res) => {
   try {
     const { videoId } = req.params;
-    const filePath = path.join("./output", `${videoId}.mp4`);
+    const filePath = path.join("output", `${videoId}.mp4`);
 
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    try {
+      await fs.unlink(filePath);
       res.json({
         success: true,
-        message: "Vídeo eliminado com sucesso",
+        message: "Vídeo eliminado com sucesso"
       });
-    } else {
+    } catch (error) {
       res.status(404).json({
         success: false,
-        error: "Vídeo não encontrado",
+        error: "Vídeo não encontrado"
       });
     }
+
   } catch (error) {
-    console.error("Error deleting video:", error);
+    console.error("Erro ao eliminar vídeo:", error);
     res.status(500).json({
       success: false,
-      error: "Erro ao eliminar vídeo",
+      error: "Erro ao eliminar vídeo"
     });
   }
 });
 
-// Endpoint de health check
+// Endpoint de verificação de saúde
 app.get("/api/health", (req, res) => {
   res.json({
     status: "OK",
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
   });
 });
 
-// Servir ficheiros estáticos
-app.use("/output", express.static("output"));
-app.use("/uploads", express.static("uploads"));
-
-// Rota raiz
+// Endpoint raiz
 app.get("/", (req, res) => {
   res.json({
     message: "Remotion Docker API Server",
@@ -379,31 +422,20 @@ app.get("/", (req, res) => {
     endpoints: {
       "POST /api/generate-video": "Gerar vídeo simples",
       "POST /api/generate-video-with-image": "Gerar vídeo com imagem",
-      "POST /api/upload-video": "Carregar vídeo",
-      "GET /api/uploaded-videos": "Listar vídeos carregados",
-      "DELETE /api/uploaded-videos/:videoId": "Eliminar vídeo carregado",
-      "GET /api/download/:videoId": "Transferir vídeo",
+      "POST /api/upload-video": "Transferir vídeo",
+      "GET /api/uploaded-videos": "Listar vídeos transferidos",
+      "DELETE /api/uploaded-videos/:videoId": "Eliminar vídeo transferido",
+      "GET /api/download/:videoId": "Download do vídeo",
       "GET /api/videos": "Listar vídeos",
       "DELETE /api/videos/:videoId": "Eliminar vídeo",
-      "GET /api/health": "Verificação de saúde",
-    },
-  });
-});
-
-// Middleware de tratamento de erros
-app.use((err, req, res, next) => {
-  console.error("Unhandled error:", err);
-  res.status(500).json({
-    success: false,
-    error: "Erro interno do servidor",
+      "GET /api/health": "Verificação de saúde"
+    }
   });
 });
 
 // Iniciar servidor
-app.listen(PORT, "0.0.0.0", () => {
+app.listen(PORT, () => {
   console.log(`🚀 Servidor Remotion API a correr na porta ${PORT}`);
   console.log(`📱 Aceda: http://localhost:${PORT}`);
   console.log(`🏥 Verificação de saúde: http://localhost:${PORT}/api/health`);
 });
-
-export default app;
