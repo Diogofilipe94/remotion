@@ -60,7 +60,7 @@ app.post("/api/generate-video", async (req, res) => {
   try {
     const { title, subtitle, backgroundColor, textColor } = req.body;
     const videoId = uuidv4();
-    const outputPath = `output/${videoId}.mp4`;
+    const outputPath = `/app/output/${videoId}.mp4`;
     
     const inputProps = {
       title: title || "Título Padrão",
@@ -143,7 +143,7 @@ app.post("/api/generate-video-with-image", upload.single("image"), async (req, r
   try {
     const { title, subtitle, backgroundColor, textColor } = req.body;
     const videoId = uuidv4();
-    const outputPath = `output/${videoId}.mp4`;
+    const outputPath = `/app/output/${videoId}.mp4`;
     
     const inputProps = {
       title: title || "Título Padrão",
