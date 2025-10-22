@@ -1,6 +1,6 @@
 FROM node:22-bookworm-slim
 
-# Install Chrome dependencies
+# Install Chrome dependencies and curl for health check
 RUN apt-get update
 RUN apt install -y \
   libnss3 \
@@ -16,7 +16,8 @@ RUN apt install -y \
   libatk-bridge2.0-0 \
   libpango-1.0-0 \
   libcairo2 \
-  libcups2
+  libcups2 \
+  curl
 
 # Install emoji fonts (optional)
 RUN apt-get install fonts-noto-color-emoji
