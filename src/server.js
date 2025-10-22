@@ -95,7 +95,7 @@ app.post("/api/generate-video", async (req, res) => {
         if (code === 0) {
           resolve({
             success: true,
-            outputPath,
+            outputPath: `output/${videoId}.mp4`,
             stdout,
           });
         } else {
@@ -119,7 +119,7 @@ app.post("/api/generate-video", async (req, res) => {
       res.json({
         success: true,
         videoId,
-        outputPath,
+        outputPath: `output/${videoId}.mp4`,
         message: "Vídeo gerado com sucesso!"
       });
     } else {
@@ -176,7 +176,7 @@ app.post("/api/generate-video-with-image", upload.single("image"), async (req, r
         if (code === 0) {
           resolve({
             success: true,
-            outputPath,
+            outputPath: `output/${videoId}.mp4`,
             stdout,
           });
         } else {
@@ -200,7 +200,7 @@ app.post("/api/generate-video-with-image", upload.single("image"), async (req, r
       res.json({
         success: true,
         videoId,
-        outputPath,
+        outputPath: `output/${videoId}.mp4`,
         message: "Vídeo gerado com sucesso!"
       });
     } else {
