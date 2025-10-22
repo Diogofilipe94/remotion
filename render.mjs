@@ -7,7 +7,7 @@ const require = createRequire(import.meta.url);
 // Get parameters from command line arguments
 const args = process.argv.slice(2);
 const compositionId = args[0] || 'VideoRoot';
-const outputPath = args[1] || `out/${compositionId}.mp4`;
+const outputPath = args[1] || `output/${compositionId}.mp4`;
 const inputPropsJson = args[2] || '{}';
 
 let inputProps = {};
@@ -27,8 +27,9 @@ try {
   // Bundle the Remotion project
   const bundled = await bundle({
     entryPoint: require.resolve('./src/index.ts'),
+    ignoreRegisterRootWarning: true,
     webpackOverride: (config) => {
-      // Remove studio-related configurations and add polyfills
+      // Remove studio-related configurations
       config.resolve.alias = {
         ...config.resolve.alias,
         '@remotion/studio': false
