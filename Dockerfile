@@ -27,7 +27,6 @@ RUN apt-get install fonts-noto-cjk
 # Copy project files
 COPY package.json package*.json yarn.lock* pnpm-lock.yaml* bun.lockb* bun.lock* tsconfig.json* remotion.config.* ./
 COPY src ./src
-COPY public ./public
 
 # Install dependencies
 RUN npm i
