@@ -3,8 +3,7 @@ version: '3.8'
 services:
   remotion-api:
     build: .
-    ports:
-      - "3000:3000"
+    container_name: remotion-api
     volumes:
       - ./output:/app/output
       - ./uploads:/app/uploads
@@ -30,3 +29,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    networks:
+      - npm-internal
+
+networks:
+  npm-internal:
+    external: true
