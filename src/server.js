@@ -17,7 +17,7 @@ app.use(express.urlencoded({ extended: true }));
 // Configurar multer para upload de ficheiros
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "uploads/");
+    cb(null, "/app/uploads/");
   },
   filename: (req, file, cb) => {
     const uniqueName = `${uuidv4()}-${file.originalname}`;
@@ -42,8 +42,8 @@ const upload = multer({
 // Criar directórios necessários
 const createDirectories = async () => {
   try {
-    await fs.mkdir("output", { recursive: true });
-    await fs.mkdir("uploads", { recursive: true });
+    await fs.mkdir("/app/output", { recursive: true });
+    await fs.mkdir("/app/uploads", { recursive: true });
   } catch (error) {
     console.error("Erro ao criar directórios:", error);
   }
@@ -52,8 +52,8 @@ const createDirectories = async () => {
 createDirectories();
 
 // Servir ficheiros estáticos
-app.use("/uploads", express.static("uploads"));
-app.use("/output", express.static("output"));
+app.use("/uploads", express.static("/app/uploads"));
+app.use("/output", express.static("/app/output"));
 
 // Endpoint para gerar vídeo simples
 app.post("/api/generate-video", async (req, res) => {
@@ -259,11 +259,11 @@ app.post("/api/upload-video", upload.single("video"), async (req, res) => {
 // Endpoint para listar vídeos transferidos
 app.get("/api/uploaded-videos", async (req, res) => {
   try {
-    const files = await fs.readdir("uploads");
+    const files = await fs.readdir("/app/uploads");
     const videoFiles = [];
 
     for (const file of files) {
-      const filePath = path.join("uploads", file);
+      const filePath = path.join("/app/uploads", file);
       const stats = await fs.stat(filePath);
       
       if (stats.isFile()) {
@@ -295,7 +295,7 @@ app.get("/api/uploaded-videos", async (req, res) => {
 app.delete("/api/uploaded-videos/:videoId", async (req, res) => {
   try {
     const { videoId } = req.params;
-    const filePath = path.join("uploads", videoId);
+    const filePath = path.join("/app/uploads", videoId);
 
     try {
       await fs.unlink(filePath);
@@ -323,7 +323,7 @@ app.delete("/api/uploaded-videos/:videoId", async (req, res) => {
 app.get("/api/download/:videoId", async (req, res) => {
   try {
     const { videoId } = req.params;
-    const filePath = path.join("output", `${videoId}.mp4`);
+    const filePath = path.join("/app/output", `${videoId}.mp4`);
     
     try {
       await fs.access(filePath);
@@ -346,12 +346,12 @@ app.get("/api/download/:videoId", async (req, res) => {
 // Endpoint para listar vídeos
 app.get("/api/videos", async (req, res) => {
   try {
-    const files = await fs.readdir("output");
+    const files = await fs.readdir("/app/output");
     const videoFiles = [];
 
     for (const file of files) {
       if (file.endsWith(".mp4")) {
-        const filePath = path.join("output", file);
+        const filePath = path.join("/app/output", file);
         const stats = await fs.stat(filePath);
         
         videoFiles.push({
@@ -382,7 +382,7 @@ app.get("/api/videos", async (req, res) => {
 app.delete("/api/videos/:videoId", async (req, res) => {
   try {
     const { videoId } = req.params;
-    const filePath = path.join("output", `${videoId}.mp4`);
+    const filePath = path.join("/app/output", `${videoId}.mp4`);
 
     try {
       await fs.unlink(filePath);

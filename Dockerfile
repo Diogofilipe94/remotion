@@ -36,6 +36,13 @@ RUN npm i
 # Install Chrome
 RUN npx remotion browser ensure
 
+# Create directories with correct permissions
+RUN mkdir -p /app/output /app/uploads && \
+    chown -R node:node /app
+
+# Switch to node user
+USER node
+
 # Expose port
 EXPOSE 3000
 
