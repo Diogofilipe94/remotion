@@ -27,6 +27,7 @@ RUN apt-get install fonts-noto-cjk
 # Copy project files
 COPY package.json package*.json yarn.lock* pnpm-lock.yaml* bun.lockb* bun.lock* tsconfig.json* remotion.config.* ./
 COPY src ./src
+COPY render.mjs ./
 
 # Install dependencies
 RUN npm i
@@ -35,19 +36,10 @@ RUN npm i
 RUN npx remotion browser ensure
 
 # Create necessary directories
-RUN mkdir -p /app/uploads /app/output /app/temp
-
-# Copy render script
-COPY render.mjs render.mjs
-
-# Copy server script
-COPY src/server.js ./src/server.js
+RUN mkdir -p output uploads
 
 # Expose port
 EXPOSE 3000
 
-# Set working directory
-WORKDIR /app
-
-# Run the API server
+# Run your application
 CMD ["node", "src/server.js"]
