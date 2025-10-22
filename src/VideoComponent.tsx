@@ -1,7 +1,14 @@
 import React from "react";
 import { AbsoluteFill } from "remotion";
 
-const VideoRoot = ({ title, subtitle, backgroundColor, textColor }) => {
+interface VideoComponentProps {
+  title?: string;
+  subtitle?: string;
+  backgroundColor?: string;
+  textColor?: string;
+}
+
+const VideoComponent: React.FC<VideoComponentProps> = ({ title, subtitle, backgroundColor, textColor }) => {
   return (
     <AbsoluteFill
       style={{
@@ -43,4 +50,5 @@ const VideoRoot = ({ title, subtitle, backgroundColor, textColor }) => {
   );
 };
 
-export default VideoRoot;
+export default VideoComponent;
+
