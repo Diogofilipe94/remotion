@@ -9,6 +9,9 @@ import { spawn } from "child_process";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Store para guardar o status dos jobs de renderização
+const jobs = new Map();
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -953,6 +956,251 @@ app.get("/api/health", (req, res) => {
     status: "OK",
     timestamp: new Date().toISOString()
   });
+});
+
+// Endpoint para consultar status de um job
+app.get("/api/job/:jobId", (req, res) => {
+  const { jobId } = req.params;
+  const job = jobs.get(jobId);
+  
+  if (!job) {
+    return res.status(404).json({
+      success: false,
+      error: "Job não encontrado"
+    });
+  }
+  
+  res.json(job);
+});
+
+// Função auxiliar para processar renderização em background
+async function processVideoJob(jobId, compositionId, inputProps, outputPath, durationInFrames) {
+  try {
+    jobs.set(jobId, {
+      jobId,
+      status: "processing",
+      progress: 0,
+      createdAt: new Date().toISOString()
+    });
+
+    const result = await new Promise((resolve, reject) => {
+      const inputPropsJson = JSON.stringify(inputProps);
+      const child = spawn("node", [
+        "render.mjs", 
+        compositionId,
+        outputPath, 
+        inputPropsJson,
+        durationInFrames.toString()
+      ], {
+        stdio: ["pipe", "pipe", "pipe"]
+      });
+
+      let stdout = "";
+      let stderr = "";
+
+      child.stdout.on("data", (data) => {
+        stdout += data.toString();
+        console.log("Render output:", data.toString());
+      });
+
+      child.stderr.on("data", (data) => {
+        stderr += data.toString();
+        console.error("Render error:", data.toString());
+      });
+
+      child.on("close", (code) => {
+        if (code === 0) {
+          resolve({
+            success: true,
+            outputPath: `output/${jobId}.mp4`,
+            stdout,
+          });
+        } else {
+          reject({
+            success: false,
+            error: stderr || "Render process failed",
+            code,
+          });
+        }
+      });
+
+      child.on("error", (error) => {
+        reject({
+          success: false,
+          error: error.message,
+        });
+      });
+    });
+
+    if (result.success) {
+      jobs.set(jobId, {
+        jobId,
+        status: "completed",
+        progress: 100,
+        videoUrl: `/output/${jobId}.mp4`,
+        downloadUrl: `output/${jobId}.mp4`,
+        completedAt: new Date().toISOString()
+      });
+    } else {
+      jobs.set(jobId, {
+        jobId,
+        status: "failed",
+        error: result.error,
+        failedAt: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    jobs.set(jobId, {
+      jobId,
+      status: "failed",
+      error: error.message || String(error),
+      failedAt: new Date().toISOString()
+    });
+  }
+}
+
+// Endpoint ASYNC para gerar vídeo com IMAGEM de fundo
+app.post("/api/async/generate-video-with-image", upload.fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'audio', maxCount: 1 },
+  { name: 'logo', maxCount: 1 }
+]), async (req, res) => {
+  try {
+    const { title, subtitle, backgroundColor, textColor, durationInSeconds, format } = req.body;
+    const jobId = uuidv4();
+    const outputPath = `/app/output/${jobId}.mp4`;
+    
+    const files = req.files;
+    const imageUrl = files?.image ? files.image[0].filename : null;
+    const audioUrl = files?.audio ? files.audio[0].filename : null;
+    const logoUrl = files?.logo ? files.logo[0].filename : null;
+    
+    const duration = parseInt(durationInSeconds) || 10;
+    const durationInFrames = duration * 30;
+    
+    const formatMap = {
+      'landscape': 'VideoImagemTituloSubtituloMusica',
+      'youtube': 'VideoImagemTituloSubtituloMusica',
+      'instagram-post': 'VideoImagemTituloSubtituloMusicaInstagramPost',
+      'instagram-stories': 'VideoImagemTituloSubtituloMusicaInstagramStories',
+      'instagram-reels': 'VideoImagemTituloSubtituloMusicaInstagramStories',
+      'tiktok': 'VideoImagemTituloSubtituloMusicaInstagramStories',
+      'youtube-shorts': 'VideoImagemTituloSubtituloMusicaInstagramStories'
+    };
+    
+    const compositionId = formatMap[format] || 'VideoImagemTituloSubtituloMusica';
+    
+    const inputProps = {
+      title: title || "Título Padrão",
+      subtitle: subtitle || "Subtítulo Padrão",
+      backgroundColor: backgroundColor || "#1a1a1a",
+      textColor: textColor || "#ffffff",
+      imageUrl,
+      audioUrl,
+      logoUrl,
+    };
+
+    // Criar job inicial
+    jobs.set(jobId, {
+      jobId,
+      status: "pending",
+      progress: 0,
+      type: "image",
+      format: format || 'landscape',
+      createdAt: new Date().toISOString()
+    });
+
+    // Processar em background
+    processVideoJob(jobId, compositionId, inputProps, outputPath, durationInFrames);
+
+    // Retornar imediatamente
+    res.json({
+      success: true,
+      jobId,
+      status: "pending",
+      message: "Job criado. Use GET /api/job/:jobId para consultar o status.",
+      statusUrl: `/api/job/${jobId}`
+    });
+
+  } catch (error) {
+    console.error("Erro ao criar job:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Endpoint ASYNC para gerar vídeo com VÍDEO de fundo
+app.post("/api/async/generate-video-with-video", upload.fields([
+  { name: 'video', maxCount: 1 },
+  { name: 'audio', maxCount: 1 },
+  { name: 'logo', maxCount: 1 }
+]), async (req, res) => {
+  try {
+    const { title, subtitle, backgroundColor, textColor, durationInSeconds, format } = req.body;
+    const jobId = uuidv4();
+    const outputPath = `/app/output/${jobId}.mp4`;
+    
+    const files = req.files;
+    const videoUrl = files?.video ? files.video[0].filename : null;
+    const audioUrl = files?.audio ? files.audio[0].filename : null;
+    const logoUrl = files?.logo ? files.logo[0].filename : null;
+    
+    const duration = parseInt(durationInSeconds) || 10;
+    const durationInFrames = duration * 30;
+    
+    const formatMap = {
+      'landscape': 'VideoTituloSubtituloMusica',
+      'youtube': 'VideoTituloSubtituloMusicaYouTube',
+      'instagram-post': 'VideoTituloSubtituloMusicaInstagramPost',
+      'instagram-stories': 'VideoTituloSubtituloMusicaInstagramStories',
+      'instagram-reels': 'VideoTituloSubtituloMusicaInstagramStories',
+      'tiktok': 'VideoTituloSubtituloMusicaTikTok',
+      'youtube-shorts': 'VideoTituloSubtituloMusicaTikTok'
+    };
+    
+    const compositionId = formatMap[format] || 'VideoTituloSubtituloMusica';
+    
+    const inputProps = {
+      title: title || "Título Padrão",
+      subtitle: subtitle || "Subtítulo Padrão",
+      backgroundColor: backgroundColor || "#1a1a1a",
+      textColor: textColor || "#ffffff",
+      videoUrl,
+      audioUrl,
+      logoUrl,
+    };
+
+    // Criar job inicial
+    jobs.set(jobId, {
+      jobId,
+      status: "pending",
+      progress: 0,
+      type: "video",
+      format: format || 'landscape',
+      createdAt: new Date().toISOString()
+    });
+
+    // Processar em background
+    processVideoJob(jobId, compositionId, inputProps, outputPath, durationInFrames);
+
+    // Retornar imediatamente
+    res.json({
+      success: true,
+      jobId,
+      status: "pending",
+      message: "Job criado. Use GET /api/job/:jobId para consultar o status.",
+      statusUrl: `/api/job/${jobId}`
+    });
+
+  } catch (error) {
+    console.error("Erro ao criar job:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 
 // Endpoint raiz
