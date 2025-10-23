@@ -53,7 +53,12 @@ const downloadFile = async (url, filename) => {
     
     const protocol = url.startsWith('https:') ? https : http;
     
-    protocol.get(url, (response) => {
+    const request = protocol.get(url, {
+      timeout: 30000, // 30 segundos timeout
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; Remotion-API/1.0)'
+      }
+    }, (response) => {
       if (response.statusCode !== 200) {
         reject(new Error(`HTTP ${response.statusCode}: ${response.statusMessage}`));
         return;
@@ -71,7 +76,14 @@ const downloadFile = async (url, filename) => {
         fsSync.unlink(filePath, () => {}); // Limpar ficheiro parcial
         reject(err);
       });
-    }).on('error', (err) => {
+    });
+    
+    request.on('timeout', () => {
+      request.destroy();
+      reject(new Error(`Timeout ao fazer download de ${url}`));
+    });
+    
+    request.on('error', (err) => {
       reject(err);
     });
   });
@@ -1170,8 +1182,14 @@ app.post("/api/async/generate-video-with-image", upload.fields([
     // Se há URLs, fazer download
     if (imageUrl || image || audioUrl || logoUrl) {
       console.log("📥 Fazendo download de URLs...");
-      processedFiles = await processMediaFiles(req);
-      console.log("✅ Ficheiros processados:", processedFiles);
+      try {
+        processedFiles = await processMediaFiles(req);
+        console.log("✅ Ficheiros processados:", processedFiles);
+      } catch (error) {
+        console.error("❌ Erro ao fazer download:", error.message);
+        // Continuar sem os ficheiros se o download falhar
+        processedFiles = {};
+      }
     }
     
     // Se há ficheiros uploadados, usar esses
@@ -1255,8 +1273,14 @@ app.post("/api/async/generate-video-with-video", upload.fields([
     // Se há URLs, fazer download
     if (videoUrl || video || audioUrl || logoUrl) {
       console.log("📥 Fazendo download de URLs...");
-      processedFiles = await processMediaFiles(req);
-      console.log("✅ Ficheiros processados:", processedFiles);
+      try {
+        processedFiles = await processMediaFiles(req);
+        console.log("✅ Ficheiros processados:", processedFiles);
+      } catch (error) {
+        console.error("❌ Erro ao fazer download:", error.message);
+        // Continuar sem os ficheiros se o download falhar
+        processedFiles = {};
+      }
     }
     
     // Se há ficheiros uploadados, usar esses
