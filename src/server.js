@@ -3,8 +3,11 @@ import cors from "cors";
 import multer from "multer";
 import { v4 as uuidv4 } from "uuid";
 import { promises as fs } from "fs";
+import fsSync from "fs";
 import path from "path";
 import { spawn } from "child_process";
+import https from "https";
+import http from "http";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -41,6 +44,89 @@ const upload = multer({
     fileSize: 100 * 1024 * 1024
   }
 });
+
+// Função para fazer download de URLs
+const downloadFile = async (url, filename) => {
+  return new Promise((resolve, reject) => {
+    const filePath = `/app/uploads/${filename}`;
+    const file = fsSync.createWriteStream(filePath);
+    
+    const protocol = url.startsWith('https:') ? https : http;
+    
+    protocol.get(url, (response) => {
+      if (response.statusCode !== 200) {
+        reject(new Error(`HTTP ${response.statusCode}: ${response.statusMessage}`));
+        return;
+      }
+      
+      response.pipe(file);
+      
+      file.on('finish', () => {
+        file.close();
+        console.log(`✅ Download concluído: ${filename}`);
+        resolve(filename);
+      });
+      
+      file.on('error', (err) => {
+        fsSync.unlink(filePath, () => {}); // Limpar ficheiro parcial
+        reject(err);
+      });
+    }).on('error', (err) => {
+      reject(err);
+    });
+  });
+};
+
+// Função para processar URLs e ficheiros
+const processMediaFiles = async (req) => {
+  const processedFiles = {};
+  
+  // Processar imagem
+  if (req.body.imageUrl) {
+    try {
+      const filename = `${uuidv4()}-image.${req.body.imageUrl.split('.').pop().split('?')[0]}`;
+      await downloadFile(req.body.imageUrl, filename);
+      processedFiles.image = filename;
+    } catch (error) {
+      throw new Error(`Erro ao fazer download da imagem: ${error.message}`);
+    }
+  }
+  
+  // Processar vídeo
+  if (req.body.videoUrl) {
+    try {
+      const filename = `${uuidv4()}-video.${req.body.videoUrl.split('.').pop().split('?')[0]}`;
+      await downloadFile(req.body.videoUrl, filename);
+      processedFiles.video = filename;
+    } catch (error) {
+      throw new Error(`Erro ao fazer download do vídeo: ${error.message}`);
+    }
+  }
+  
+  // Processar áudio
+  if (req.body.audioUrl) {
+    try {
+      const filename = `${uuidv4()}-audio.${req.body.audioUrl.split('.').pop().split('?')[0]}`;
+      await downloadFile(req.body.audioUrl, filename);
+      processedFiles.audio = filename;
+    } catch (error) {
+      throw new Error(`Erro ao fazer download do áudio: ${error.message}`);
+    }
+  }
+  
+  // Processar logo
+  if (req.body.logoUrl) {
+    try {
+      const filename = `${uuidv4()}-logo.${req.body.logoUrl.split('.').pop().split('?')[0]}`;
+      await downloadFile(req.body.logoUrl, filename);
+      processedFiles.logo = filename;
+    } catch (error) {
+      throw new Error(`Erro ao fazer download do logo: ${error.message}`);
+    }
+  }
+  
+  return processedFiles;
+};
 
 // Criar directórios necessários
 const createDirectories = async () => {
@@ -1059,21 +1145,30 @@ async function processVideoJob(jobId, compositionId, inputProps, outputPath, dur
   }
 }
 
-// Endpoint ASYNC para gerar vídeo com IMAGEM de fundo
+// Endpoint ASYNC para gerar vídeo com IMAGEM de fundo (aceita URLs e ficheiros)
 app.post("/api/async/generate-video-with-image", upload.fields([
   { name: 'image', maxCount: 1 },
   { name: 'audio', maxCount: 1 },
   { name: 'logo', maxCount: 1 }
 ]), async (req, res) => {
   try {
-    const { title, subtitle, backgroundColor, textColor, durationInSeconds, format } = req.body;
+    const { title, subtitle, backgroundColor, textColor, durationInSeconds, format, imageUrl, audioUrl, logoUrl } = req.body;
     const jobId = uuidv4();
     const outputPath = `/app/output/${jobId}.mp4`;
     
+    // Processar ficheiros (URLs ou uploads)
+    let processedFiles = {};
+    
+    // Se há URLs, fazer download
+    if (imageUrl || audioUrl || logoUrl) {
+      processedFiles = await processMediaFiles(req);
+    }
+    
+    // Se há ficheiros uploadados, usar esses
     const files = req.files;
-    const imageUrl = files?.image ? files.image[0].filename : null;
-    const audioUrl = files?.audio ? files.audio[0].filename : null;
-    const logoUrl = files?.logo ? files.logo[0].filename : null;
+    const finalImageUrl = files?.image ? files.image[0].filename : processedFiles.image;
+    const finalAudioUrl = files?.audio ? files.audio[0].filename : processedFiles.audio;
+    const finalLogoUrl = files?.logo ? files.logo[0].filename : processedFiles.logo;
     
     const duration = parseInt(durationInSeconds) || 10;
     const durationInFrames = duration * 30;
@@ -1095,9 +1190,9 @@ app.post("/api/async/generate-video-with-image", upload.fields([
       subtitle: subtitle || "Subtítulo Padrão",
       backgroundColor: backgroundColor || "#1a1a1a",
       textColor: textColor || "#ffffff",
-      imageUrl,
-      audioUrl,
-      logoUrl,
+      imageUrl: finalImageUrl,
+      audioUrl: finalAudioUrl,
+      logoUrl: finalLogoUrl,
     };
 
     // Criar job inicial
@@ -1131,21 +1226,30 @@ app.post("/api/async/generate-video-with-image", upload.fields([
   }
 });
 
-// Endpoint ASYNC para gerar vídeo com VÍDEO de fundo
+// Endpoint ASYNC para gerar vídeo com VÍDEO de fundo (aceita URLs e ficheiros)
 app.post("/api/async/generate-video-with-video", upload.fields([
   { name: 'video', maxCount: 1 },
   { name: 'audio', maxCount: 1 },
   { name: 'logo', maxCount: 1 }
 ]), async (req, res) => {
   try {
-    const { title, subtitle, backgroundColor, textColor, durationInSeconds, format } = req.body;
+    const { title, subtitle, backgroundColor, textColor, durationInSeconds, format, videoUrl, audioUrl, logoUrl } = req.body;
     const jobId = uuidv4();
     const outputPath = `/app/output/${jobId}.mp4`;
     
+    // Processar ficheiros (URLs ou uploads)
+    let processedFiles = {};
+    
+    // Se há URLs, fazer download
+    if (videoUrl || audioUrl || logoUrl) {
+      processedFiles = await processMediaFiles(req);
+    }
+    
+    // Se há ficheiros uploadados, usar esses
     const files = req.files;
-    const videoUrl = files?.video ? files.video[0].filename : null;
-    const audioUrl = files?.audio ? files.audio[0].filename : null;
-    const logoUrl = files?.logo ? files.logo[0].filename : null;
+    const finalVideoUrl = files?.video ? files.video[0].filename : processedFiles.video;
+    const finalAudioUrl = files?.audio ? files.audio[0].filename : processedFiles.audio;
+    const finalLogoUrl = files?.logo ? files.logo[0].filename : processedFiles.logo;
     
     const duration = parseInt(durationInSeconds) || 10;
     const durationInFrames = duration * 30;
@@ -1167,9 +1271,9 @@ app.post("/api/async/generate-video-with-video", upload.fields([
       subtitle: subtitle || "Subtítulo Padrão",
       backgroundColor: backgroundColor || "#1a1a1a",
       textColor: textColor || "#ffffff",
-      videoUrl,
-      audioUrl,
-      logoUrl,
+      videoUrl: finalVideoUrl,
+      audioUrl: finalAudioUrl,
+      logoUrl: finalLogoUrl,
     };
 
     // Criar job inicial
