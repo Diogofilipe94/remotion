@@ -117,22 +117,24 @@ const processMediaFiles = async (req) => {
     }
   }
   
-  // Processar áudio
-  if (req.body.audioUrl) {
+  // Processar áudio (suporta tanto audioUrl quanto audio)
+  const audioUrl = req.body.audioUrl || req.body.audio;
+  if (audioUrl) {
     try {
-      const filename = `${uuidv4()}-audio.${req.body.audioUrl.split('.').pop().split('?')[0]}`;
-      await downloadFile(req.body.audioUrl, filename);
+      const filename = `${uuidv4()}-audio.${audioUrl.split('.').pop().split('?')[0]}`;
+      await downloadFile(audioUrl, filename);
       processedFiles.audio = filename;
     } catch (error) {
       throw new Error(`Erro ao fazer download do áudio: ${error.message}`);
     }
   }
   
-  // Processar logo
-  if (req.body.logoUrl) {
+  // Processar logo (suporta tanto logoUrl quanto logo)
+  const logoUrl = req.body.logoUrl || req.body.logo;
+  if (logoUrl) {
     try {
-      const filename = `${uuidv4()}-logo.${req.body.logoUrl.split('.').pop().split('?')[0]}`;
-      await downloadFile(req.body.logoUrl, filename);
+      const filename = `${uuidv4()}-logo.${logoUrl.split('.').pop().split('?')[0]}`;
+      await downloadFile(logoUrl, filename);
       processedFiles.logo = filename;
     } catch (error) {
       throw new Error(`Erro ao fazer download do logo: ${error.message}`);
@@ -1170,17 +1172,17 @@ app.post("/api/async/generate-video-with-image", upload.fields([
   { name: 'logo', maxCount: 1 }
 ]), async (req, res) => {
   try {
-    const { title, subtitle, backgroundColor, textColor, durationInSeconds, format, imageUrl, image, audioUrl, logoUrl } = req.body;
+    const { title, subtitle, backgroundColor, textColor, durationInSeconds, format, imageUrl, image, audioUrl, audio, logoUrl, logo } = req.body;
     const jobId = uuidv4();
     const outputPath = `/app/output/${jobId}.mp4`;
     
     // Processar ficheiros (URLs ou uploads)
     let processedFiles = {};
     
-    console.log("🔍 Debug - URLs recebidas:", { imageUrl, image, audioUrl, logoUrl });
+    console.log("🔍 Debug - URLs recebidas:", { imageUrl, image, audioUrl, audio, logoUrl, logo });
     
     // Se há URLs, fazer download
-    if (imageUrl || image || audioUrl || logoUrl) {
+    if (imageUrl || image || audioUrl || audio || logoUrl || logo) {
       console.log("📥 Fazendo download de URLs...");
       try {
         processedFiles = await processMediaFiles(req);
@@ -1261,17 +1263,17 @@ app.post("/api/async/generate-video-with-video", upload.fields([
   { name: 'logo', maxCount: 1 }
 ]), async (req, res) => {
   try {
-    const { title, subtitle, backgroundColor, textColor, durationInSeconds, format, videoUrl, video, audioUrl, logoUrl } = req.body;
+    const { title, subtitle, backgroundColor, textColor, durationInSeconds, format, videoUrl, video, audioUrl, audio, logoUrl, logo } = req.body;
     const jobId = uuidv4();
     const outputPath = `/app/output/${jobId}.mp4`;
     
     // Processar ficheiros (URLs ou uploads)
     let processedFiles = {};
     
-    console.log("🔍 Debug - URLs recebidas:", { videoUrl, video, audioUrl, logoUrl });
+    console.log("🔍 Debug - URLs recebidas:", { videoUrl, video, audioUrl, audio, logoUrl, logo });
     
     // Se há URLs, fazer download
-    if (videoUrl || video || audioUrl || logoUrl) {
+    if (videoUrl || video || audioUrl || audio || logoUrl || logo) {
       console.log("📥 Fazendo download de URLs...");
       try {
         processedFiles = await processMediaFiles(req);
