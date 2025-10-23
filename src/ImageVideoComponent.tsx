@@ -1,12 +1,13 @@
 import React from "react";
 import {
   AbsoluteFill,
-  Audio,
+  OffthreadVideo,
   Img,
   useCurrentFrame,
   useVideoConfig,
   interpolate,
   spring,
+  staticFile,
 } from "remotion";
 
 interface ImageVideoComponentProps {
@@ -108,7 +109,7 @@ const ImageVideoComponent: React.FC<ImageVideoComponentProps> = ({
       {imageUrl && (
         <AbsoluteFill>
           <Img
-            src={imageUrl}
+            src={staticFile(imageUrl)}
             style={{
               width: "100%",
               height: "100%",
@@ -136,8 +137,8 @@ const ImageVideoComponent: React.FC<ImageVideoComponentProps> = ({
 
       {/* Áudio de fundo */}
       {audioUrl && (
-        <Audio
-          src={audioUrl}
+        <OffthreadVideo
+          src={staticFile(audioUrl)}
           volume={1}
         />
       )}
@@ -219,7 +220,7 @@ const ImageVideoComponent: React.FC<ImageVideoComponentProps> = ({
             }}
           >
             <Img
-              src={logoUrl}
+              src={staticFile(logoUrl)}
               style={{
                 height: "80px",
                 width: "auto",

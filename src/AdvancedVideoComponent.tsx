@@ -1,14 +1,14 @@
 import React from "react";
 import {
   AbsoluteFill,
-  Audio,
+  OffthreadVideo,
   Img,
-  Video,
   useCurrentFrame,
   useVideoConfig,
   interpolate,
   spring,
   Sequence,
+  staticFile,
 } from "remotion";
 
 interface AdvancedVideoComponentProps {
@@ -99,8 +99,8 @@ const AdvancedVideoComponent: React.FC<AdvancedVideoComponentProps> = ({
       {/* Vídeo de fundo (se fornecido) */}
       {videoUrl && (
         <AbsoluteFill>
-          <Video
-            src={videoUrl}
+          <OffthreadVideo
+            src={staticFile(videoUrl)}
             style={{
               width: "100%",
               height: "100%",
@@ -128,8 +128,8 @@ const AdvancedVideoComponent: React.FC<AdvancedVideoComponentProps> = ({
 
       {/* Áudio de fundo */}
       {audioUrl && (
-        <Audio
-          src={audioUrl}
+        <OffthreadVideo
+          src={staticFile(audioUrl)}
           volume={1}
         />
       )}
@@ -211,7 +211,7 @@ const AdvancedVideoComponent: React.FC<AdvancedVideoComponentProps> = ({
             }}
           >
             <Img
-              src={logoUrl}
+              src={staticFile(logoUrl)}
               style={{
                 height: "80px",
                 width: "auto",
