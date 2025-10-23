@@ -25,11 +25,41 @@ console.log('Output path:', outputPath);
 console.log('Input props:', inputProps);
 
 try {
+  // Copiar ficheiros de /app/uploads para /app/public antes do bundle
+  const fs = await import('fs');
+  const fsPromises = fs.promises;
+  const publicDir = '/app/public';
+  
+  // Criar diretório public se não existir
+  if (!fs.existsSync(publicDir)) {
+    fs.mkdirSync(publicDir, { recursive: true });
+  }
+  
+  // Copiar ficheiros mencionados em inputProps
+  const filesToCopy = [
+    inputProps.videoUrl,
+    inputProps.audioUrl,
+    inputProps.imageUrl,
+    inputProps.logoUrl
+  ].filter(Boolean); // Remove null/undefined
+  
+  for (const filename of filesToCopy) {
+    const sourcePath = `/app/uploads/${filename}`;
+    const targetPath = `/app/public/${filename}`;
+    
+    if (fs.existsSync(sourcePath)) {
+      await fsPromises.copyFile(sourcePath, targetPath);
+      console.log(`✓ Copied ${filename} to public directory`);
+    } else {
+      console.warn(`⚠ File not found: ${sourcePath}`);
+    }
+  }
+  
   // Bundle the Remotion project
   const bundled = await bundle({
     entryPoint: require.resolve('./src/index.ts'),
     ignoreRegisterRootWarning: true,
-    publicDir: '/app/uploads',  // Servir ficheiros de /app/uploads como public
+    publicDir: publicDir,  // Servir ficheiros de /app/public como public
     webpackOverride: (config) => {
       // Remove studio-related configurations
       config.resolve.alias = {

@@ -37,7 +37,7 @@ RUN npm i
 RUN npx remotion browser ensure
 
 # Create directories with correct permissions
-RUN mkdir -p /app/output /app/uploads && \
+RUN mkdir -p /app/output /app/uploads /app/public && \
     chown -R node:node /app
 
 # Switch to node user
