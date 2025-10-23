@@ -345,9 +345,9 @@ app.post("/api/generate-video-with-image-full", upload.fields([
     
     // Processar ficheiros enviados
     const files = req.files;
-    const imageUrl = files?.image ? `http://localhost:3000/uploads/${files.image[0].filename}` : null;
-    const audioUrl = files?.audio ? `http://localhost:3000/uploads/${files.audio[0].filename}` : null;
-    const logoUrl = files?.logo ? `http://localhost:3000/uploads/${files.logo[0].filename}` : null;
+    const imageUrl = files?.image ? `file:///app/uploads/${files.image[0].filename}` : null;
+    const audioUrl = files?.audio ? `file:///app/uploads/${files.audio[0].filename}` : null;
+    const logoUrl = files?.logo ? `file:///app/uploads/${files.logo[0].filename}` : null;
     
     // Calcular duração em frames (padrão: 10 segundos)
     const duration = parseInt(durationInSeconds) || 10;
@@ -487,9 +487,9 @@ app.post("/api/generate-video-with-video-full", upload.fields([
     
     // Processar ficheiros enviados
     const files = req.files;
-    const videoUrl = files?.video ? `http://localhost:3000/uploads/${files.video[0].filename}` : null;
-    const audioUrl = files?.audio ? `http://localhost:3000/uploads/${files.audio[0].filename}` : null;
-    const logoUrl = files?.logo ? `http://localhost:3000/uploads/${files.logo[0].filename}` : null;
+    const videoUrl = files?.video ? `file:///app/uploads/${files.video[0].filename}` : null;
+    const audioUrl = files?.audio ? `file:///app/uploads/${files.audio[0].filename}` : null;
+    const logoUrl = files?.logo ? `file:///app/uploads/${files.logo[0].filename}` : null;
     
     // Calcular duração em frames (padrão: 10 segundos)
     const duration = parseInt(durationInSeconds) || 10;
