@@ -1,7 +1,7 @@
 import React from "react";
 import {
   AbsoluteFill,
-  OffthreadVideo,
+  Html5Audio,
   Img,
   useCurrentFrame,
   useVideoConfig,
@@ -137,7 +137,7 @@ const ImageVideoComponent: React.FC<ImageVideoComponentProps> = ({
 
       {/* Áudio de fundo */}
       {audioUrl && (
-        <OffthreadVideo
+        <Html5Audio
           src={staticFile(audioUrl)}
           volume={1}
         />
