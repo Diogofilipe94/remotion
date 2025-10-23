@@ -345,10 +345,10 @@ app.post("/api/generate-video-with-image-full", upload.fields([
     
     // Processar ficheiros enviados
     const files = req.files;
-    // Usar staticFile() do Remotion para servir ficheiros locais
-    const imageUrl = files?.image ? `/app/uploads/${files.image[0].filename}` : null;
-    const audioUrl = files?.audio ? `/app/uploads/${files.audio[0].filename}` : null;
-    const logoUrl = files?.logo ? `/app/uploads/${files.logo[0].filename}` : null;
+    // Usar apenas o nome do ficheiro (staticFile procura em publicDir)
+    const imageUrl = files?.image ? files.image[0].filename : null;
+    const audioUrl = files?.audio ? files.audio[0].filename : null;
+    const logoUrl = files?.logo ? files.logo[0].filename : null;
     
     // Calcular duração em frames (padrão: 10 segundos)
     const duration = parseInt(durationInSeconds) || 10;
@@ -488,10 +488,10 @@ app.post("/api/generate-video-with-video-full", upload.fields([
     
     // Processar ficheiros enviados
     const files = req.files;
-    // Usar caminhos absolutos para staticFile() do Remotion
-    const videoUrl = files?.video ? `/app/uploads/${files.video[0].filename}` : null;
-    const audioUrl = files?.audio ? `/app/uploads/${files.audio[0].filename}` : null;
-    const logoUrl = files?.logo ? `/app/uploads/${files.logo[0].filename}` : null;
+    // Usar apenas o nome do ficheiro (staticFile procura em publicDir)
+    const videoUrl = files?.video ? files.video[0].filename : null;
+    const audioUrl = files?.audio ? files.audio[0].filename : null;
+    const logoUrl = files?.logo ? files.logo[0].filename : null;
     
     // Calcular duração em frames (padrão: 10 segundos)
     const duration = parseInt(durationInSeconds) || 10;

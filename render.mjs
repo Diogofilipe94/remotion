@@ -29,6 +29,7 @@ try {
   const bundled = await bundle({
     entryPoint: require.resolve('./src/index.ts'),
     ignoreRegisterRootWarning: true,
+    publicDir: '/app/uploads',  // Servir ficheiros de /app/uploads como public
     webpackOverride: (config) => {
       // Remove studio-related configurations
       config.resolve.alias = {
