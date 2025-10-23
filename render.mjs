@@ -6,9 +6,10 @@ const require = createRequire(import.meta.url);
 
 // Get parameters from command line arguments
 const args = process.argv.slice(2);
-const compositionId = args[0] || 'VideoRoot';
+const compositionId = args[0] || 'VideoTextoSimples';
 const outputPath = args[1] || `output/${compositionId}.mp4`;
 const inputPropsJson = args[2] || '{}';
+const customDuration = args[3] ? parseInt(args[3]) : null;
 
 let inputProps = {};
 try {
@@ -55,11 +56,20 @@ try {
   console.log('Bundle created successfully');
 
   // Select the composition
-  const composition = await selectComposition({
+  let composition = await selectComposition({
     serveUrl: bundled,
     id: compositionId,
     inputProps,
   });
+
+  // Override duration if custom duration is provided
+  if (customDuration) {
+    composition = {
+      ...composition,
+      durationInFrames: customDuration,
+    };
+    console.log('Custom duration applied:', customDuration, 'frames');
+  }
 
   console.log('Composition selected:', composition.id);
   console.log('Duration:', composition.durationInFrames, 'frames at', composition.fps, 'fps');
