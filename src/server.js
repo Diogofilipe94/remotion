@@ -157,7 +157,11 @@ app.post("/api/generate-video", async (req, res) => {
       title: title || "Título Padrão",
       subtitle: subtitle || "Subtítulo Padrão",
       backgroundColor: backgroundColor || "#000000",
-      textColor: textColor || "#ffffff"
+      textColor: textColor || "#ffffff",
+      imageUrl: imageUrl || null,
+      videoUrl: videoUrl || null,
+      audioUrl: audioUrl || null,
+      logoUrl: logoUrl || null,
     };
 
     console.log("Starting video generation...");
